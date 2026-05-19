@@ -111,6 +111,37 @@ Don't try to one-prompt the whole ad in Seedance 2.0. You'll get character drift
 - **Image 2 output size:** 1024×1792 (vertical). Pass this into Seedance as `input.image_input[0]`.
 - **Seedance resolution:** `720p` default, `480p` for cost-sensitive drafts.
 
+## Audio pipeline — ElevenLabs VO, no in-prompt narrator
+
+**Hard rule (cross-skill):** generate voiceover externally via ElevenLabs and overlay in post — never use Seedance's in-prompt `Narrator:` line. See [claymation guide § Audio pipeline](../../claymation-ad/prompting/guide.md#audio-pipeline-do-this-not-in-prompt-narrator) — the same flow applies to Pixar ads. Same ElevenLabs voice across all beats, same Whisper→HyperFrames caption pipeline.
+
+### ⚠️ No dead space — VO drives clip duration
+
+**The voiceover must fill the full duration of the clip it plays over.** Dead space — clip footage continuing after the VO ends, or starting noticeably before the VO begins — kills retention on TikTok/Reels/Shorts. Viewers swipe on the first half-second of silence.
+
+Seedance default beats (4–10s) almost always exceed the ElevenLabs line that plays over them. **Measure both, then reconcile per beat:**
+
+| Option | When | How |
+|--------|------|-----|
+| **A. Trim the clip to fit the VO** (default) | VO is shorter than clip. Most beats. | Re-encode video to `vo_dur + 0.5s` (0.25s lead + 0.25s tail). |
+| **B. Extend the VO to fill the clip** | Visual has a long camera move, mascot mechanism, or CTA hold that needs the full time to land. | Add 1–2 more words or a second short line. Re-render ElevenLabs MP3 and re-measure. |
+
+```bash
+VO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 vo/beatN.mp3)
+CLIP_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 clips/beatN.mp4)
+TARGET=$(python3 -c "print(min($CLIP_DUR, $VO_DUR + 0.50))")
+ffmpeg -y -i clips/beatN.mp4 -t $TARGET -c:v libx264 -preset slow -crf 18 \
+  -pix_fmt yuv420p -c:a copy tight/beatN.mp4
+```
+
+**Hard subrules:**
+- Allowed micro-buffer: ~0.25s lead, ~0.25s tail. Anything beyond that is dead air — pick A or B.
+- If VO is *longer* than the clip, never use `atempo` to speed it up. Split the line across two beats, or regenerate Seedance at a longer duration.
+- **Always re-transcribe + rebuild captions against the trimmed master mp4** — Whisper timestamps shift after trimming.
+- Verify caption Y position after trimming — the final frame at the cut may have different foreground content than the original last frame.
+
+This rule applies cross-skill — claymation, Pixar, UGC, any video-ad pipeline that pairs generated video with TTS VO.
+
 ## Cost & confirmation (mandatory)
 
 Before firing any generation, calculate and present total credit cost to the user. Standard KIE rule (see [KIE SKILL.md "Credit cost estimation"](../../kie-external-api/SKILL.md#credit-cost-estimation-mandatory--show-before-generating)).

@@ -133,28 +133,85 @@ Same reasoning as Pixar — animates each approved still while preserving the re
 
 ## Narration & dialogue
 
-Claymation ads are **narrator-driven**, unlike Pixar's first-person protagonist voice. The narrator carries 70–90% of the audio; characters speak only in beat 3 (the social validation scene) and sometimes briefly in beat 7.
+**Hard rule (confirmed 2026-05-19): Always generate the voiceover externally via ElevenLabs and overlay in post — never use Seedance's in-prompt `Narrator:` line for claymation ads.** The claymation visual is the storytelling vehicle; baking VO into Seedance forces character/lip-sync compromises, produces inconsistent voice quality across beats, and locks pacing to the video model's delivery. ElevenLabs gives one consistent voice across all 7–8 beats, predictable per-line durations, and a clean MP3 to run Whisper against for the caption track.
 
-**Narrator voice direction:**
+### Audio pipeline (do this, not in-prompt narrator)
+
+1. **Seedance prompt** — keep ambient SFX language (room tone, distant birdsong, hose hiss, zap clicks) but **omit the `Narrator:` line entirely**. Set `audioEnabled: false` on Seedance (cost is identical, but you avoid generating a stray VO that has to be stripped).
+2. **ElevenLabs TTS per beat** — one MP3 per beat using a single consistent `voice_id` across the whole ad. POST `https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`, header `xi-api-key: $ELEVENLABS_API_KEY`, body `{"text": "...", "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.45, "similarity_boost": 0.75, "style": 0.35, "use_speaker_boost": true}}`.
+3. **Trim each clip to match its VO duration — no dead space.** See "No dead space" rule below. After ElevenLabs returns the MP3, `ffprobe` its duration and trim the matching clip to `lead (0.25s) + vo_dur + tail (0.25s)` before muxing. Don't let the clip ride silent after the VO ends.
+4. **Pad each VO mp3** with the 0.25s lead-in and tiny trailing buffer so the audio aligns inside the trimmed clip, then mux (`-c:v copy` on the trimmed video, `-c:a copy` on the padded VO).
+5. **Concat the trimmed voiced clips** into the master ad with ffmpeg `-f concat`.
+6. **Whisper-transcribe the master VO** (model `medium.en` — required for music-mixed audio; see [caption-video guide](../../caption-video/prompting/guide.md)) and build the HyperFrames captions composition from word-level timestamps. **Always re-transcribe after trimming** — timestamps shift.
+
+### ⚠️ No dead space — VO drives clip duration
+
+**Hard rule:** the voiceover must fill the full duration of the clip it plays over. Dead space — clip footage continuing after the VO ends, or starting noticeably before the VO begins — kills retention on TikTok/Reels/Shorts. Viewers swipe on the first half-second of silence.
+
+The Seedance default duration (~6–10s) is almost always longer than the ElevenLabs line that plays over it. **Measure both, then reconcile.**
+
+```bash
+VO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 vo/beatN.mp3)
+CLIP_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 clips/beatN.mp4)
+TARGET=$(python3 -c "print(min($CLIP_DUR, $VO_DUR + 0.50))")  # lead 0.25 + tail 0.25
+
+# Re-encode-trim the clip (not stream copy — re-encode for a clean cut at the exact target)
+ffmpeg -y -i clips/beatN.mp4 -t $TARGET -c:v libx264 -preset slow -crf 18 \
+  -pix_fmt yuv420p -c:a copy tight/beatN.mp4
+```
+
+**Allowed micro-buffer:** ~0.25s lead-in before VO starts (so the cut doesn't feel jammed) and ~0.25s tail after VO ends (so the cut breath sits before the next beat). Anything beyond that should be filled with more VO content or trimmed out.
+
+**Per-beat: pick one of two options.**
+
+| Option | When | How |
+|--------|------|-----|
+| **A. Trim the clip to fit the VO** (default) | VO is shorter than clip. Most beats. | Re-encode video to `vo_dur + 0.5s`. Saves runtime, tightens retention. |
+| **B. Extend the VO to fill the clip** | Visual has motion that needs the full time to land (camera move, transformation montage, CTA hold). | Add 1–2 more words or a second short line. Re-render ElevenLabs MP3 and re-measure. |
+
+**Never just let the clip ride in silence.** A 6s clip with a 3.5s VO has 2.5s of dead air — pick A or B.
+
+**Hard subrules:**
+- If the VO is *longer* than the clip, **never use `atempo` to speed up the VO** — sounds artificial. Instead either split the line across two beats, or re-generate the Seedance clip at a longer duration.
+- Caption track must be rebuilt against the *final* trimmed master mp4. Whisper timestamps shift after trimming.
+- Re-verify the lower-third caption Y position after trimming — if the trimmed clip ends on a different visual frame than the original, the caption may collide with a foreground element.
+
+### Voice direction baseline
+
 - Warm storytelling cadence, slight pause between sentences
 - Mid-pace — never rushed
 - Slight smile in the voice
-- References to character by name ("Diane noticed...", "When her friend Margaret asked...")
+- References to character by name when narrative ("Diane noticed…")
+- For UGC feature-demo ads (vs narrative arc): wry midwestern UGC tone, energetic young american creator
 
-**Character dialogue:**
+**ElevenLabs voice picks that match these tones** (verify with `GET /v1/voices`):
+
+| Use case | Voice | voice_id |
+|----------|-------|----------|
+| Warm narrative storytelling (Aardman tone) | George — Warm, Captivating Storyteller (british middle-aged male) | `JBFqnCBsd6RMkjVDRZzb` |
+| UGC feature demo (TikTok energy, young female) | Hope — Upbeat and Clear | `tnSpp4vdxKPjI9w0GnoV` |
+| Wry midwestern narration | Chris — Charming, Down-to-Earth | `iP95p4xoKVk53GoZ742B` |
+
+Always pick **one** voice for the whole ad — don't mix narrator voices across beats.
+
+### Character dialogue
+
 - Sparse — one short line per character
 - Casual, natural — no marketing copy
 - Often the supporting character makes the observation: *"You look different — what is that?"*
+- Generate character dialogue lines as **separate ElevenLabs renders** with their own `voice_id`, then composite at the right beat timestamp alongside the narrator track.
 
-**Auto-select per-beat duration based on narrator line length** (~2.5 words/sec):
+### Auto-select per-beat duration based on VO line length (~2.5 words/sec, plus 0.5s lead-in + 1.5–2.5s trail)
 
-| Narrator words | Beat duration |
-|----------------|---------------|
-| 1–15 | 6s |
-| 16–22 | 8s |
-| 23–30 | 10s |
-| 31–37 | 12s |
-| 38+ | Split across beats |
+| Narrator words | ElevenLabs duration | Beat clip duration |
+|----------------|---------------------|---------------------|
+| 1–10 | ~2–3s | 6s |
+| 11–17 | ~4–5s | 6s |
+| 18–25 | ~6–7s | 8s |
+| 26–32 | ~8–9s | 10s |
+| 33+ | Split across beats | — |
+
+Always measure actual ElevenLabs MP3 duration with `ffprobe` before muxing — TTS pace varies per voice and per `stability`/`style` setting.
 
 ## Cost & confirmation (mandatory)
 

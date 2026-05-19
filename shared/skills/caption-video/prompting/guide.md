@@ -2,6 +2,8 @@
 
 **Use this skill when:** the user has a finished MP4 (claymation ad, Pixar ad, UGC selfie, B-roll, anything) with a narrator / dialogue / voiceover, and wants timed burned-in captions added without re-rendering the source.
 
+> ⚠️ **Trim before captioning.** If the source video has any beats with VO followed by silent visual ("dead space"), trim those beats *before* captioning — re-encode each beat to `vo_dur + 0.5s`, re-concat, and only then transcribe. Whisper timestamps applied to a tightened master line up; timestamps from a dead-space master will drift when the source is later trimmed. See [claymation guide § No dead space](../../claymation-ad/prompting/guide.md#-no-dead-space--vo-drives-clip-duration) for the canonical rule and ffmpeg recipe — it applies to every video-ad style.
+
 Anchors on **HyperFrames** (HTML-based composition framework) + **Whisper** (word-level transcription) + **ffmpeg chroma-key compositing**. This pattern was tuned across multiple production runs — follow it exactly or expect the bugs listed below.
 
 ## Why not just use ffmpeg `subtitles` / `drawtext` directly?

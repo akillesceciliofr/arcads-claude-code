@@ -9,13 +9,20 @@ Read [guide.md](guide.md) for the 8-beat arc and [storyboard-gpt-image-2.md](sto
 For the full Seedance 2 model guide on KIE see [../../kie-external-api/prompting/prompt-library/seedance-2.md](../../kie-external-api/prompting/prompt-library/seedance-2.md). Claymation-specific rules:
 
 - **Endpoint:** `POST /api/v1/jobs/createTask` with `"model": "bytedance/seedance-2"` (KIE) or `POST /v2/videos/generate` with `"model": "seedance-2.0"` (Arcads). Verify model string on the marketplace page.
-- **Image input:** pass the approved still as `input.image_input[0]` (KIE) or `startFrame` (Arcads).
+- **Image input:** pass the approved still as `input.image_input[0]` (KIE) or `referenceImages: [filePath]` (Arcads — note: Seedance does NOT support `startFrame`; use `referenceImages`).
 - **Duration:** continuous 4–15s. Match each beat target from [guide.md](guide.md).
 - **Aspect ratio:** `"9:16"`.
 - **Resolution:** `"720p"`.
-- **Prompt length:** 100–260 words, `Subject + Action + Camera + Style + Constraints`.
+- **Audio:** **`audioEnabled: false` (or omit)** — see "No in-prompt narrator" rule below. Seedance does generate usable ambient SFX, but we strip and replace in post.
+- **Prompt length:** 100–260 words, `Subject + Action + Camera + Style + Constraints`. **No `Narrator:` line.**
 - **Forbidden Seedance words** (do not use): `cinematic`, `professional`, `stunning`, `8k`, `studio`, `perfect`. Use instead: "stop-motion claymation film aesthetic", "polished hand-sculpted", "high fidelity", "evenly hand-painted".
 - **Critical for this style:** the motion must read as **smooth AI-rendered animation that preserves the claymation aesthetic of the still**. Do NOT ask Seedance to "stop-motion judder" — that breaks the look. If the user wants judder, post-process with ffmpeg after stitching (see [guide.md → Smooth motion vs stop-motion judder](guide.md#smooth-motion-vs-stop-motion-judder--pick-one)).
+
+## ⚠️ No in-prompt narrator — VO comes from ElevenLabs
+
+**Do not include `Narrator: "..."` in the Seedance prompt.** All voiceover is generated externally via ElevenLabs and overlaid in post — see [guide.md → Audio pipeline](guide.md#audio-pipeline-do-this-not-in-prompt-narrator). The structure below uses an `[AMBIENT]` block in place of the old `[NARRATOR / AUDIO]` block. Ambient SFX language is fine; spoken VO is not.
+
+In-prompt narration was tried on the 2026-05-19 SolarZap recreation and produces inconsistent voice quality across beats plus pacing that's locked to the video model's delivery. External TTS gives one consistent voice, predictable durations for caption timing, and a clean MP3 to run Whisper against.
 
 ## Universal animation prompt structure
 
@@ -25,7 +32,7 @@ For the full Seedance 2 model guide on KIE see [../../kie-external-api/prompting
 [ACTION]                ← one primary motion + small secondary motions, with degree adverbs
 [CAMERA]                ← framing + small camera motion (often locked or breathing)
 [STYLE ANCHOR]          ← "stop-motion claymation film aesthetic" + Aardman tone words
-[NARRATOR / AUDIO]      ← narrator VO line, character dialogue if any, ambient sound
+[AMBIENT]               ← room tone + SFX only. NO narrator/dialogue lines — those come from ElevenLabs in post.
 [CONSTRAINTS]           ← consistency + negatives, claymation-specific
 ```
 
