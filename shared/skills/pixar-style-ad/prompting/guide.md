@@ -260,6 +260,7 @@ This is the opposite of the other video models on the same endpoint (`sora2`, `v
 - [storyboard-gpt-image-2.md](storyboard-gpt-image-2.md) — ChatGPT Image 2 prompt formulas for each of the 4 beats
 - [animate-seedance-2.md](animate-seedance-2.md) — Seedance 2.0 image-to-video formulas, per-beat
 - [reference-stack.md](reference-stack.md) — list of public reference videos and visual style anchors
+- [../scripts/README.md](../scripts/README.md) — end-to-end shell + Python pipeline (storyboard → Seedance → VO → music → captions → final mix); reusable across campaigns
 
 ## Trigger phrases (for skill activation)
 

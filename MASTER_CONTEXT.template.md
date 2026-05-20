@@ -54,6 +54,24 @@ These apply across all generative-image and generative-video APIs.
 - **No subtitles, no captions, no text overlays** — append this clause to every prompt; many video models burn captions in by default.
 - **Human motion cues are mandatory** for person-on-screen videos: 3–4 cues per prompt (breaking eye contact, head tilts, weight shifts, grip adjustments). Without these, subjects look like frozen mannequins.
 
+## Meta ad deployment
+
+Used by the **`meta-ad-builder`** shared skill (`shared/skills/meta-ad-builder/`) — publishes
+finished creatives as Meta (Facebook/Instagram) ads. Fill in your account IDs once; the skill
+reads them so you don't paste them every run. These are account identifiers, not secrets, but
+the file is gitignored either way.
+
+- **Default ad account** (`META_AD_ACCOUNT_ID`):
+- **Facebook Page ID** (`META_PAGE_ID`):
+- **Instagram user ID** (`META_IG_USER_ID`):
+- **Meta Pixel ID** (`META_PIXEL_ID`):
+- **Default destination URL / offer link:**
+- **Default ad set(s) to deploy into** (name → ID):
+- **Default CTA type** (e.g. `SIGN_UP`, `LEARN_MORE`):
+
+The access token itself (`META_ACCESS_TOKEN`) lives in `.env`, never here. Every ad the skill
+creates is **PAUSED** — review and un-pause in Meta Ads Manager.
+
 
 
 ## Project snapshot — Arcads

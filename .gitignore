@@ -11,6 +11,8 @@ MASTER_CONTEXT.md
 .cursor/skills/
 .DS_Store
 *.log
+__pycache__/
+*.pyc
 outputs/
 output/
 references/youtube thumbnail/
