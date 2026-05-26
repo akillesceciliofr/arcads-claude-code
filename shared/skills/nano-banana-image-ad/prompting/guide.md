@@ -183,4 +183,4 @@ Common nano-banana defects + their fix prompts:
 - **Ad copy writing** — different skill.
 - **Video, carousel, DCO ads** — image only.
 - **ChatGPT Image 2 / gpt-image-2 generation** — use `chatgpt-image-ad` instead.
-- **Editing the prompt library** — use `image-ad-clone-nano-banana` to add new validated templates.
+- **Editing the prompt library** — use `image-ad-clone` to add new validated templates (it asks which backend to validate against, and routes accordingly).

@@ -10,7 +10,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SHARED BRAIN (no SKILL.md — referenced by all 4 skills below)   │
+│ SHARED BRAIN (no SKILL.md — referenced by all 3 skills below)   │
 │ shared/skills/image-ad-prompting/                               │
 │   ├ prompting/prompt-library.md   37 validated templates        │
 │   ├ prompting/template-format.md  entry-format skeleton         │
@@ -21,9 +21,10 @@
 │ skills/chatgpt-image-ad/         → gpt-image-2                  │
 │ skills/nano-banana-image-ad/     → nano-banana-2 / -pro / -edit │
 ├─────────────────────────────────────────────────────────────────┤
-│ TEMPLATE-CREATION SKILLS (reverse-engineer an ad → library)     │
-│ skills/image-ad-clone-chatgpt/        validates via gpt-image-2 │
-│ skills/image-ad-clone-nano-banana/    validates via Nano Banana │
+│ TEMPLATE-CREATION SKILL (reverse-engineer an ad → library)      │
+│ skills/image-ad-clone/   asks which backend, routes to matching │
+│                          generator above. Single skill replaces │
+│                          the older per-model clone variants.    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,7 +54,7 @@ The user's first sentence usually tells you which way to branch.
 **Step 1: Are they generating from scratch, or cloning an existing ad image?**
 
 - **Generating** → one of the two generator skills.
-- **Cloning** (they shared an ad image and want it as a reusable prompt) → one of the two clone skills.
+- **Cloning** (they shared an ad image and want it as a reusable prompt) → the single `image-ad-clone` skill (it asks which backend to validate against at Phase 1).
 
 **Step 2: Pick the model.**
 
@@ -65,9 +66,9 @@ Skim what the user wants and match it to model strengths:
 | Handheld whiteboard signs, napkin handwritten testimonials, sticky-note + product flatlays, letter-board signs, lifestyle scenes, OOH/transit photography, scratch-off tickets, **photoreal / material-rich / multi-reference** ads | **`nano-banana-image-ad`** |
 | Ambiguous? | Look up the matching template in `prompting/prompt-library.md` and read its `Model notes:` block — every entry recommends one or the other. |
 
-**Step 3: For cloning, match the clone-skill to the generator the user prefers.** `image-ad-clone-chatgpt` validates by round-tripping through `chatgpt-image-ad`. `image-ad-clone-nano-banana` round-trips through `nano-banana-image-ad`.
+**Step 3: For cloning, the `image-ad-clone` skill handles both backends.** At Phase 1 it asks the user (or auto-detects from the reference's typography-vs-photo balance) whether to validate via `chatgpt-image-ad` or `nano-banana-image-ad`. It then routes through the matching generator's `scripts/generate_image.py`. Phase 8 of the workflow optionally cross-validates against the other backend so the resulting library entry has `Model notes:` for both.
 
-Both clone skills depend on the matching generator's `scripts/generate_image.py` being installed in the same repo. If neither generator is installed, install one before running the clone skill.
+The clone skill depends on at least one of the two generators being installed in the same repo. If neither is installed, install one first.
 
 ---
 
@@ -120,7 +121,7 @@ This is the workflow inside any chat session where the user wants to make an ad:
 
 ## Standard workflow — clone an existing ad into a reusable template
 
-Use `image-ad-clone-chatgpt` or `image-ad-clone-nano-banana` (pick based on which generator you want the new template validated against).
+Use the `image-ad-clone` skill (single backend-agnostic skill — Phase 1 asks which generator to validate against, Phase 8 optionally cross-validates against the other).
 
 The 10-phase workflow lives in `shared/skills/image-ad-clone/prompting/guide.md`. Key checkpoints:
 
@@ -159,9 +160,7 @@ skills/
   nano-banana-image-ad/
     SKILL.md
     scripts/generate_image.py
-  image-ad-clone-chatgpt/
-    SKILL.md
-  image-ad-clone-nano-banana/
+  image-ad-clone/
     SKILL.md
 
 shared/skills/             ← propagated from gen-ai-core/content/skills/

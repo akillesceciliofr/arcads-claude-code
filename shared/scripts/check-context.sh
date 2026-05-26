@@ -55,7 +55,7 @@ if [[ -d "$skills_dir" ]]; then
     name="$(basename "$d")"
     skills_count=$((skills_count + 1))
     case "$name" in
-      chatgpt-image-ad|nano-banana-image-ad|image-ad-clone-chatgpt|image-ad-clone-nano-banana)
+      chatgpt-image-ad|nano-banana-image-ad|image-ad-clone)
         image_ad_skills+=("$name")
         ;;
       *)
@@ -115,11 +115,8 @@ done
         nano-banana-image-ad)
           printf '  • %-30s — Nano Banana / photoreal / lifestyle\n' "$s"
           ;;
-        image-ad-clone-chatgpt)
-          printf '  • %-30s — clone ad → reusable template (gpt-image-2)\n' "$s"
-          ;;
-        image-ad-clone-nano-banana)
-          printf '  • %-30s — clone ad → reusable template (Nano Banana)\n' "$s"
+        image-ad-clone)
+          printf '  • %-30s — clone ad → reusable library entry (asks which backend)\n' "$s"
           ;;
       esac
     done

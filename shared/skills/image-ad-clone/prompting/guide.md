@@ -1,10 +1,12 @@
 # image-ad-clone — reverse-engineer an existing ad into a reusable template
 
-This guide is the shared brain for the **`image-ad-clone-chatgpt`** and **`image-ad-clone-nano-banana`** skills — taking an existing image ad and turning it into a parameterizable prompt template stored in the shared library.
+This guide is the shared brain for the **`image-ad-clone`** skill — taking an existing image ad and turning it into a parameterizable prompt template stored in the shared library.
 
-The workflow is **model-agnostic up through Phase 6**, where the generation step diverges based on which model you're validating against. Both per-API repos have two variants of this skill:
-- `image-ad-clone-chatgpt` — validates by round-tripping through `chatgpt-image-ad`'s generator (gpt-image-2)
-- `image-ad-clone-nano-banana` — validates by round-tripping through `nano-banana-image-ad`'s generator
+The workflow is **model-agnostic through Phase 6**. The model choice happens in Phase 1: the skill asks the user (or auto-detects from the reference's typography-vs-photo balance) whether to validate against:
+- **`chatgpt-image-ad`'s generator** (gpt-image-2) — for typography / UI-mimicry templates
+- **`nano-banana-image-ad`'s generator** (Nano Banana family) — for photoreal / lifestyle / multi-ref templates
+
+Phase 8 optionally cross-validates against the OTHER backend so the resulting library entry has accurate `Model notes:` for both.
 
 For the shared library, see:
 - [shared/skills/image-ad-prompting/prompting/prompt-library.md](../../image-ad-prompting/prompting/prompt-library.md) — destination for new entries
@@ -40,7 +42,11 @@ For the shared library, see:
 
 1. The reference image path resolves to an existing file. If not, stop and ask.
 2. The credentials the matching `generate_image.py` needs are present in `.env`.
-3. The companion generator is available — for `image-ad-clone-chatgpt`, that's the per-API repo's `chatgpt-image-ad/scripts/generate_image.py`. For `image-ad-clone-nano-banana`, that's the per-API repo's `nano-banana-image-ad/scripts/generate_image.py`. Look in this order:
+3. **Pick the backend.** Ask the user "validate against gpt-image-2 or Nano Banana?" or auto-detect from the reference (typography-heavy → gpt-image-2; photoreal / handheld / multi-ref → Nano Banana). Then locate the matching companion generator:
+   - For gpt-image-2: `chatgpt-image-ad/scripts/generate_image.py`
+   - For Nano Banana: `nano-banana-image-ad/scripts/generate_image.py`
+
+   Look in this order:
    - `~/.claude/skills/<companion>/scripts/generate_image.py`
    - `<repo>/skills/<companion>/scripts/generate_image.py`
    - If neither: stop and ask the user to install the companion skill (this skill's hard dependency).
