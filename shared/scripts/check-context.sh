@@ -32,6 +32,35 @@ fi
 
 REPO_NAME="$(basename "$ROOT")"
 
+# ── Upstream-updates check ───────────────────────────────────────────────────
+# If this is a git clone with an `origin` remote, quietly check whether any
+# commits are pending upstream. Notify only — never auto-pull. The actual pull
+# requires the user to run `git pull` themselves (so their local edits and
+# in-flight work stay safe).
+upstream_behind=0
+upstream_ref=""
+upstream_log=""
+upstream_dirty=0
+if [[ -d "$ROOT/.git" ]] && git -C "$ROOT" remote get-url origin >/dev/null 2>&1; then
+  # Quiet fetch with a 10s ceiling so offline sessions don't hang.
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 10 git -C "$ROOT" fetch origin --quiet 2>/dev/null || true
+  else
+    # macOS without coreutils — fall back to plain fetch, accept the small risk.
+    git -C "$ROOT" fetch origin --quiet 2>/dev/null || true
+  fi
+  # Resolve upstream: prefer the user's tracked branch; fall back to origin/main.
+  upstream_ref="$(git -C "$ROOT" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  [[ -z "$upstream_ref" ]] && upstream_ref="origin/main"
+  if git -C "$ROOT" rev-parse --verify "$upstream_ref" >/dev/null 2>&1; then
+    upstream_behind="$(git -C "$ROOT" rev-list --count "HEAD..$upstream_ref" 2>/dev/null || echo 0)"
+    if (( upstream_behind > 0 )); then
+      upstream_log="$(git -C "$ROOT" log "HEAD..$upstream_ref" --oneline 2>/dev/null | head -5)"
+      [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]] && upstream_dirty=1
+    fi
+  fi
+fi
+
 # Detect which generative APIs this repo is wired for.
 apis=()
 [[ -f "$ROOT/.env.example" ]] && grep -q "ARCADS_" "$ROOT/.env.example" 2>/dev/null && apis+=("Arcads")
@@ -132,6 +161,22 @@ done
 
   if [[ ${#other_skills[@]} -gt 0 ]]; then
     printf '\nOther skills installed: %s\n' "$(printf '%s, ' "${other_skills[@]}" | sed 's/, $//')"
+  fi
+
+  if (( upstream_behind > 0 )); then
+    printf '\n⚠️  %d update(s) available from %s:\n' "$upstream_behind" "$upstream_ref"
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && printf '   %s\n' "$line"
+    done <<< "$upstream_log"
+    if (( upstream_behind > 5 )); then
+      printf '   (... and %d more)\n' "$((upstream_behind - 5))"
+    fi
+    if (( upstream_dirty == 1 )); then
+      printf '\n   ⚠️  You have uncommitted local changes. Stash or commit first:\n'
+      printf '       git stash && git pull && git stash pop\n'
+    else
+      printf '\n   To update: git pull   (then re-run ./scripts/sync-skill.sh if skills changed)\n'
+    fi
   fi
 
   printf '─────────────────────────────────────────────────────────────────────\n\n'
