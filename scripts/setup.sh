@@ -45,40 +45,69 @@ fi
 if [[ "$needs_key" == "1" ]]; then
   echo ""
   echo "Need an Arcads account first? Sign up here: https://arcads.ai/?via=caleb"
-  echo "Then go to https://app.arcads.ai/settings/api and copy your Basic auth header."
-  echo "It looks like: Basic ODQxMTg4NDExZDY1NDQ0MmJk..."
+  echo "Then go to https://app.arcads.ai/settings/api and copy EITHER:"
+  echo "  • the Basic auth header (e.g. 'Basic ODQxMTg4NDExZDY1NDQ0MmJk...'), OR"
+  echo "  • the raw API key (we'll build the header for you)"
   echo ""
 
   attempts=0
   while (( attempts < 3 )); do
     attempts=$((attempts + 1))
     # -s hides input so the key never echoes or lands in scrollback.
-    printf "Paste your Basic auth header (input hidden, Enter to skip): "
-    read -rs basic_auth
+    printf "Paste your Basic header or raw API key (input hidden, Enter to skip): "
+    read -rs input
     printf "\n"
 
-    if [[ -z "$basic_auth" ]]; then
+    if [[ -z "$input" ]]; then
       echo "Skipped — edit .env manually before using the skill."
       break
     fi
 
-    # Normalize: prepend "Basic " if missing.
-    if [[ "$basic_auth" != Basic\ * ]]; then
-      basic_auth="Basic $basic_auth"
+    # Try several interpretations of the input, validate each, use whichever works.
+    candidates=()
+    if [[ "$input" == Basic\ * ]]; then
+      # Pasted with "Basic " prefix — try as-is, then strip and re-base64 in case
+      # it's a raw key the user accidentally prepended "Basic " to.
+      candidates+=("$input")
+      stripped="${input#Basic }"
+      candidates+=("Basic $(printf '%s:' "$stripped" | base64 | tr -d '\n')")
+    else
+      # No prefix. Could be (a) base64-encoded credentials already, or
+      # (b) the raw API key. Try both.
+      candidates+=("Basic $input")
+      candidates+=("Basic $(printf '%s:' "$input" | base64 | tr -d '\n')")
     fi
 
+    basic_auth=""
+    raw_key=""
     echo "Validating against $BASE_URL/v1/products ..."
-    if validate_auth "$basic_auth"; then
-      # Write to .env with single quotes to handle special characters.
+    for candidate in "${candidates[@]}"; do
+      if validate_auth "$candidate"; then
+        basic_auth="$candidate"
+        # If the candidate came from base64-encoding the input, the input was the raw key.
+        if [[ "$candidate" == "Basic $(printf '%s:' "$input" | base64 | tr -d '\n')" ]] \
+           || [[ "$candidate" == "Basic $(printf '%s:' "${input#Basic }" | base64 | tr -d '\n')" ]]; then
+          raw_key="${input#Basic }"
+        fi
+        break
+      fi
+    done
+
+    if [[ -n "$basic_auth" ]]; then
+      # Write Basic header (always). Also write API key if we recovered it.
       sed "s|ARCADS_BASIC_AUTH=.*|ARCADS_BASIC_AUTH='$basic_auth'|" "$ROOT/.env" > "$ROOT/.env.tmp" \
         && mv "$ROOT/.env.tmp" "$ROOT/.env"
+      if [[ -n "$raw_key" ]] && grep -q "^# ARCADS_API_KEY=" "$ROOT/.env"; then
+        sed "s|^# ARCADS_API_KEY=.*|ARCADS_API_KEY='$raw_key'|" "$ROOT/.env" > "$ROOT/.env.tmp" \
+          && mv "$ROOT/.env.tmp" "$ROOT/.env"
+      fi
       chmod 600 "$ROOT/.env" 2>/dev/null || true
       echo "✓ Valid. Saved to .env as $(mask_secret "$basic_auth")"
-      unset basic_auth
+      unset input basic_auth raw_key candidates candidate
       break
     else
-      echo "✗ Invalid credentials (Arcads rejected them). Attempts left: $((3 - attempts))"
-      unset basic_auth
+      echo "✗ Invalid credentials (Arcads rejected both header and raw-key interpretations). Attempts left: $((3 - attempts))"
+      unset input basic_auth raw_key candidates candidate
     fi
   done
 fi
