@@ -327,6 +327,15 @@ Each skill's canonical source lives in `skills/<name>/`. After editing any file 
 
 This copies your changes to `.claude/skills/` and `.cursor/skills/` (which are gitignored — they're generated copies). The `SessionStart` hook in `.claude/settings.json` also runs this automatically when Claude Code opens.
 
+## Staying current
+
+This repo updates regularly — new templates land in the prompt library, new workflows get added, bugs get fixed. To stay in sync with upstream:
+
+- **At every Claude Code session start**, the `check-context.sh` hook automatically runs `git fetch origin` (with a 10s timeout, never blocks). If your local clone is behind, the SessionStart banner will list the pending commits and tell you to run `git pull`. No surprise pulls — it just notifies.
+- **To pull updates manually:** `git pull origin main` from the repo root. If you've made local changes to tracked files, stash them first: `git stash && git pull && git stash pop`.
+- **If you've forked the repo on GitHub:** click the "Sync fork" button on your fork's page to bring it in line with this upstream, then `git pull` locally.
+- **Customizations:** your `.env`, `MASTER_CONTEXT.md`, `references/`, `outputs/`, and `logs/` are all gitignored — they survive every update. If you customize a core skill file (e.g. tune a SKILL.md for your brand), expect potential merge conflicts on `git pull` — keep custom versions under a non-tracked path (e.g. `local-skills/`) if you don't want them affected by upstream updates.
+
 ## Security
 
 - `.env` is gitignored — never committed
